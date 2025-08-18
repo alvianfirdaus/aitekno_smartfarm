@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "1046245241778",
+    "firebase_url": "https://programsiramtanamotomatisb-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "programsiramtanamotomatisb",
+    "storage_bucket": "programsiramtanamotomatisb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1046245241778:android:a01c496bce13b53f21aaab",
+        "android_client_info": {
+          "package_name": "com.example.agro_smart_farm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCK3U0VIltL-N0m8btw0vfBiyrL4oHekWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1046245241778:android:936d7510fdcad4b221aaab",
+        "android_client_info": {
+          "package_name": "com.example.aitekno_smartfarm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCK3U0VIltL-N0m8btw0vfBiyrL4oHekWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1046245241778:android:b2db195dd30d4b8221aaab",
+        "android_client_info": {
+          "package_name": "com.example.sitanamalvianb"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCK3U0VIltL-N0m8btw0vfBiyrL4oHekWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

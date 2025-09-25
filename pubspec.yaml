@@ -48,6 +48,8 @@ dependencies:
   mobile_scanner: ^3.5.5
   flutter_switch: ^0.3.2
   lucide_icons: ^0.257.0
+  youtube_player_flutter: ^8.1.2
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:

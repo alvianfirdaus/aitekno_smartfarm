@@ -14,70 +14,152 @@ class TabelDataPanelWidget extends StatefulWidget {
 }
 
 class _TabelDataPanelWidgetState extends State<TabelDataPanelWidget> {
-  late String selectedDate;
+  /// zhistory yang sudah dinormalisasi: key tanggal dipaksa ke yyyy_MM_dd
+  Map<String, Map<String, dynamic>> _zhistoryNorm = {};
+  late String selectedDate; // yyyy_MM_dd
 
   @override
   void initState() {
     super.initState();
-    String today = DateFormat('yyyy_MM_dd').format(DateTime.now());
-    selectedDate = today;
+    _zhistoryNorm = _normalizeZhistory(widget.plotData['zhistory']);
+    _pickLatestOrToday();
   }
 
-  bool get dataAvailable {
-    return widget.plotData['zhistory']?.containsKey(selectedDate) ?? false;
+  @override
+  void didUpdateWidget(covariant TabelDataPanelWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.plotData, widget.plotData)) {
+      _zhistoryNorm = _normalizeZhistory(widget.plotData['zhistory']);
+      if (!_zhistoryNorm.containsKey(selectedDate)) {
+        _pickLatestOrToday();
+      } else {
+        setState(() {}); // refresh tampilan
+      }
+    }
   }
 
-  void _selectDate() async {
-    DateTime? pickedDate = await showDatePicker(
+  // ======================
+  // Normalisasi & Helpers
+  // ======================
+
+  /// "2025-08-06" -> "2025_08_06"
+  String _normDateKey(String dateKey) => dateKey.replaceAll('-', '_');
+
+  /// Bangun peta zhistory dengan key tanggal dinormalisasi (yyyy_MM_dd)
+  Map<String, Map<String, dynamic>> _normalizeZhistory(dynamic raw) {
+    if (raw == null || raw is! Map) return {};
+    final Map<String, dynamic> hist = Map<String, dynamic>.from(raw);
+    final out = <String, Map<String, dynamic>>{};
+    hist.forEach((k, v) {
+      final nk = _normDateKey(k.toString());
+      if (v is Map) out[nk] = Map<String, dynamic>.from(v);
+    });
+    return out;
+  }
+
+  /// Ambil tanggal terbaru yang tersedia; jika kosong, pakai hari ini
+  void _pickLatestOrToday() {
+    final today = DateFormat('yyyy_MM_dd').format(DateTime.now());
+    final dates = _zhistoryNorm.keys.toList()..sort((a, b) => b.compareTo(a)); // desc
+    if (dates.contains(today)) {
+      selectedDate = today;
+    } else if (dates.isNotEmpty) {
+      selectedDate = dates.first;
+    } else {
+      selectedDate = today;
+    }
+    if (mounted) setState(() {});
+  }
+
+  /// Convert dinamis ke String rapi
+  String _asString(dynamic v) {
+    if (v == null) return '-';
+    if (v is bool) return v ? 'true' : 'false';
+    return v.toString().trim();
+  }
+
+  /// Parse angka fleksibel (String/num) → String (tanpa error)
+  String _numToText(dynamic v) {
+    if (v == null) return '-';
+    if (v is num) return v.toString();
+    if (v is String) {
+      final t = v.trim().replaceAll(',', '.');
+      final d = double.tryParse(t);
+      return d?.toString() ?? v.trim();
+    }
+    return v.toString();
+  }
+
+  /// Parse statusPompa ke ON/OFF
+  String _statusText(dynamic v) {
+    if (v == null) return 'OFF';
+    if (v is bool) return v ? 'ON' : 'OFF';
+    if (v is num) return v == 1 ? 'ON' : 'OFF';
+    if (v is String) {
+      final t = v.trim();
+      if (t == '1' || t.toLowerCase() == 'on' || t.toLowerCase() == 'true') return 'ON';
+      return 'OFF';
+    }
+    return 'OFF';
+  }
+
+  bool get dataAvailable => _zhistoryNorm.containsKey(selectedDate);
+
+  Future<void> _selectDate() async {
+    final initial = DateTime.tryParse(selectedDate.replaceAll('_', '-')) ?? DateTime.now();
+    final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.parse(selectedDate.replaceAll("_", "-")),
+      initialDate: initial,
       firstDate: DateTime(2020, 1, 1),
       lastDate: DateTime(2030, 12, 31),
     );
+    if (picked == null) return;
 
-    if (pickedDate != null) {
-      String formattedDate = DateFormat('yyyy_MM_dd').format(pickedDate);
-      setState(() {
-        selectedDate = formattedDate;
-      });
+    final formatted = DateFormat('yyyy_MM_dd').format(picked);
+    setState(() => selectedDate = formatted);
 
-      if (!widget.plotData['zhistory']!.containsKey(formattedDate)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Data tidak tersedia untuk tanggal ini")),
-        );
-      }
+    if (!_zhistoryNorm.containsKey(formatted) && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Data tidak tersedia untuk tanggal ini")),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    Map<String, dynamic>? selectedData =
-        widget.plotData['zhistory']?[selectedDate]?.cast<String, dynamic>();
+    // Ambil data untuk selectedDate
+    final Map<String, dynamic>? selectedMap = _zhistoryNorm[selectedDate];
 
-    List<DataRow> tableRows = [];
+    // Susun baris tabel
+    final List<DataRow> tableRows = [];
+    if (selectedMap != null) {
+      // typed + sorted by time "HH:mm"
+      final times = selectedMap.keys.toList()..sort();
+      for (final time in times) {
+        final value = selectedMap[time];
+        if (value is! Map) continue;
+        final entry = Map<String, dynamic>.from(value);
 
-    if (selectedData != null) {
-      List<String> sortedTimes = selectedData.keys.toList()..sort();
-      for (var time in sortedTimes) {
-        var value = selectedData[time];
-        if (value is Map) {
-          tableRows.add(
-            DataRow(
-              cells: [
-                DataCell(Text(time)),
-                DataCell(Text('${value['nitrogen'] ?? '-'}')),
-                DataCell(Text('${value['phosphorus'] ?? '-'}')),
-                DataCell(Text('${value['potassium'] ?? '-'}')),
-                DataCell(Text('${value['airTemperature'] ?? '-'}')),
-                DataCell(Text('${value['soilTemperature'] ?? '-'}')),
-                DataCell(Text('${value['soilMoistureNPK'] ?? '-'}')),
-                DataCell(Text('${value['airHumidity'] ?? '-'}')),
-                DataCell(Text('${value['pH'] ?? '-'}')),
-                DataCell(Text((value['statusPompa'] == 1) ? 'ON' : 'OFF')),
-              ],
-            ),
-          );
-        }
+        // alias kelembaban tanah
+        final soilMoist =
+            entry.containsKey('soilMoistureNPK') ? entry['soilMoistureNPK'] : entry['soilMoisture'];
+
+        tableRows.add(
+          DataRow(
+            cells: [
+              DataCell(Text(_asString(time))),
+              DataCell(Text(_numToText(entry['nitrogen']))),
+              DataCell(Text(_numToText(entry['phosphorus']))),
+              DataCell(Text(_numToText(entry['potassium']))),
+              DataCell(Text(_numToText(entry['airTemperature']))),
+              DataCell(Text(_numToText(entry['soilTemperature']))),
+              DataCell(Text(_numToText(soilMoist))),
+              DataCell(Text(_numToText(entry['airHumidity']))),
+              DataCell(Text(_numToText(entry['pH']))),
+              DataCell(Text(_statusText(entry['statusPompa']))),
+            ],
+          ),
+        );
       }
     }
 
@@ -98,17 +180,18 @@ class _TabelDataPanelWidgetState extends State<TabelDataPanelWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-           Center(
-              child: Text(
-                "Tabel History Lingkungan",
-                style: TextStyle(
-                  color: Color(0xFF145215),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+          const Center(
+            child: Text(
+              "Tabel History Lingkungan",
+              style: TextStyle(
+                color: Color(0xFF145215),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 15),
+          ),
+          const SizedBox(height: 15),
+
           // Header tanggal
           Container(
             padding: const EdgeInsets.symmetric(vertical: 25, horizontal: 16),
@@ -124,9 +207,7 @@ class _TabelDataPanelWidgetState extends State<TabelDataPanelWidget> {
                   const Icon(Icons.calendar_today, color: Colors.white, size: 16),
                   const SizedBox(width: 8),
                   Text(
-                    DateFormat('yyyy-MM-dd').format(
-                      DateTime.parse(selectedDate.replaceAll("_", "-")),
-                    ),
+                    selectedDate.replaceAll('_', '-'),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,

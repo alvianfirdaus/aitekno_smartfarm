@@ -15,10 +15,10 @@ class GrafikBulananWidget extends StatefulWidget {
 }
 
 class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
-  late String selectedMonth;
+  late String selectedMonth; // format ui: yyyy_MM
   late String selectedData;
 
-  final List<String> dataOptions = [
+  final List<String> dataOptions = const [
     "Nutrisi (NPK)",
     "Kelembaban Tanah",
     "Suhu Udara",
@@ -30,10 +30,59 @@ class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
   @override
   void initState() {
     super.initState();
-    DateTime now = DateTime.now();
+    final now = DateTime.now();
     selectedMonth = DateFormat('yyyy_MM').format(now);
     selectedData = dataOptions[0];
   }
+
+  // ======================
+  // Helpers
+  // ======================
+
+  // Normalisasi "2025-08-06" -> "2025_08_06"
+  String _normDateKey(String dateKey) => dateKey.replaceAll('-', '_');
+
+  // Ambil hari (dd) dari "yyyy_mm_dd" atau "yyyy-mm-dd"
+  int _extractDay(String dateKey) {
+    final m = RegExp(r'^(\d{4})[-_](\d{2})[-_](\d{2})$').firstMatch(dateKey);
+    if (m == null) return 0;
+    return int.tryParse(m.group(3)!) ?? 0;
+  }
+
+  // Parser angka fleksibel (String/num), toleran koma desimal, dan handle "n/a"
+  double? _asDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final t = v.trim().toLowerCase();
+      if (t.isEmpty || t == 'n/a' || t == 'na' || t == 'null') return null;
+      return double.tryParse(t.replaceAll(',', '.'));
+    }
+    return null;
+  }
+
+  String _keyFor(String label) {
+    switch (label) {
+      case "Kelembaban Tanah":
+        // KUNCI UTAMA untuk kelembaban tanah
+        // (logika fallback ke soilMoisture ada di _getSingleValueAveragesPerDay)
+        return "soilMoistureNPK";
+      case "Kelembaban Udara":
+        return "airHumidity";
+      case "Suhu Udara":
+        return "airTemperature";
+      case "Suhu Tanah":
+        return "soilTemperature";
+      case "pH Tanah":
+        return "pH";
+      default:
+        return "";
+    }
+  }
+
+  // ======================
+  // Data Builders
+  // ======================
 
   Map<String, Map<int, double>> _getNpkAveragesPerDay() {
     final historyRaw = widget.plotData['zhistory'];
@@ -43,26 +92,25 @@ class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
     final Map<String, Map<int, List<double>>> npkPerDay = {
       'nitrogen': {},
       'phosphorus': {},
-      'potassium': {}
+      'potassium': {},
     };
 
-    history.forEach((dateKey, timeEntriesRaw) {
-      if (dateKey.startsWith(selectedMonth)) {
-        int day = int.tryParse(dateKey.split('_').last) ?? 0;
+    history.forEach((dateKeyRaw, timeEntriesRaw) {
+      final dateKey = _normDateKey(dateKeyRaw);
+      if (!dateKey.startsWith(selectedMonth)) return;
 
-        if (timeEntriesRaw is Map) {
-          final timeEntries = Map<String, dynamic>.from(timeEntriesRaw);
+      final day = _extractDay(dateKey);
+      if (day == 0 || timeEntriesRaw is! Map) return;
 
-          for (var entryRaw in timeEntries.values) {
-            if (entryRaw is Map) {
-              final entry = Map<String, dynamic>.from(entryRaw);
-              for (var key in ['nitrogen', 'phosphorus', 'potassium']) {
-                var value = entry[key];
-                if (value != null && value is num) {
-                  npkPerDay[key]!.putIfAbsent(day, () => []).add(value.toDouble());
-                }
-              }
-            }
+      final timeEntries = Map<String, dynamic>.from(timeEntriesRaw);
+      for (final entryRaw in timeEntries.values) {
+        if (entryRaw is! Map) continue;
+        final entry = Map<String, dynamic>.from(entryRaw);
+
+        for (final k in ['nitrogen', 'phosphorus', 'potassium']) {
+          final d = _asDouble(entry[k]);
+          if (d != null) {
+            npkPerDay[k]!.putIfAbsent(day, () => <double>[]).add(d);
           }
         }
       }
@@ -71,81 +119,75 @@ class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
     final Map<String, Map<int, double>> npkAverages = {
       'nitrogen': {},
       'phosphorus': {},
-      'potassium': {}
+      'potassium': {},
     };
 
-    npkPerDay.forEach((key, dataPerDay) {
-      dataPerDay.forEach((day, values) {
-        double avg = values.reduce((a, b) => a + b) / values.length;
-        npkAverages[key]![day] = double.parse(avg.toStringAsFixed(2)); // Round to 2 decimal places
+    npkPerDay.forEach((key, perDay) {
+      perDay.forEach((day, values) {
+        final avg = values.reduce((a, b) => a + b) / values.length;
+        npkAverages[key]![day] = double.parse(avg.toStringAsFixed(2));
       });
     });
 
     return npkAverages;
   }
 
+  /// Ambil rata-rata per hari untuk 1 metrik (kelembaban, suhu, pH)
+  /// KHUSUS "soilMoistureNPK": prefer NPK, fallback ke soilMoisture jika NPK null/invalid.
   Map<int, double> _getSingleValueAveragesPerDay(String key) {
     final historyRaw = widget.plotData['zhistory'];
-    if (historyRaw == null || historyRaw is! Map) return {};
+    if (historyRaw == null || historyRaw is! Map || key.isEmpty) return {};
 
     final Map<String, dynamic> history = Map<String, dynamic>.from(historyRaw);
     final Map<int, List<double>> dataPerDay = {};
 
-    history.forEach((dateKey, timeEntriesRaw) {
-      if (dateKey.startsWith(selectedMonth)) {
-        int day = int.tryParse(dateKey.split('_').last) ?? 0;
+    history.forEach((dateKeyRaw, timeEntriesRaw) {
+      final dateKey = _normDateKey(dateKeyRaw);
+      if (!dateKey.startsWith(selectedMonth)) return;
 
-        if (timeEntriesRaw is Map) {
-          final timeEntries = Map<String, dynamic>.from(timeEntriesRaw);
+      final day = _extractDay(dateKey);
+      if (day == 0 || timeEntriesRaw is! Map) return;
 
-          for (var entryRaw in timeEntries.values) {
-            if (entryRaw is Map) {
-              final entry = Map<String, dynamic>.from(entryRaw);
-              var value = entry[key];
-              if (value != null && value is num) {
-                dataPerDay.putIfAbsent(day, () => []).add(value.toDouble());
-              }
-            }
-          }
+      final timeEntries = Map<String, dynamic>.from(timeEntriesRaw);
+      for (final entryRaw in timeEntries.values) {
+        if (entryRaw is! Map) continue;
+        final entry = Map<String, dynamic>.from(entryRaw);
+
+        double? val;
+        if (key == 'soilMoistureNPK') {
+          // ✅ Prefer soilMoistureNPK -> fallback soilMoisture
+          val = _asDouble(entry['soilMoistureNPK']);
+          val ??= _asDouble(entry['soilMoisture']);
+        } else {
+          val = _asDouble(entry[key]);
+        }
+
+        if (val != null) {
+          dataPerDay.putIfAbsent(day, () => <double>[]).add(val);
         }
       }
     });
 
     final Map<int, double> dailyAverages = {};
     dataPerDay.forEach((day, values) {
-      double avg = values.reduce((a, b) => a + b) / values.length;
-      dailyAverages[day] = double.parse(avg.toStringAsFixed(2)); // Round to 2 decimal places
+      final avg = values.reduce((a, b) => a + b) / values.length;
+      dailyAverages[day] = double.parse(avg.toStringAsFixed(2));
     });
-
     return dailyAverages;
   }
 
-  void _selectMonth() async {
-    DateTime now = DateTime.now();
-    DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.parse("${selectedMonth.replaceAll("_", "-")}-01"),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-      initialDatePickerMode: DatePickerMode.year,
-      selectableDayPredicate: (date) => date.day == 1, // Only allow day 1 to simplify
-      helpText: "Pilih Bulan",
-    );
-
-    if (picked != null) {
-      setState(() {
-        selectedMonth = DateFormat('yyyy_MM').format(picked);
-      });
-    }
-  }
+  // ======================
+  // Chart helpers
+  // ======================
 
   List<FlSpot> generateFullMonthSpots(Map<int, double> rawData) {
     return List<FlSpot>.generate(31, (i) {
       final day = i + 1;
-      final value = rawData[day] ?? 0; // default to 0 if no data
+      final value = rawData[day] ?? 0; // default 0 jika tidak ada data
       return FlSpot(day.toDouble(), value);
     });
   }
+
   double calculateMinY(List<FlSpot> data) {
     if (data.isEmpty) return 0;
     final min = data.map((e) => e.y).reduce((a, b) => a < b ? a : b);
@@ -172,6 +214,23 @@ class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
     return max + 10;
   }
 
+  Future<void> _selectMonth() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.parse("${selectedMonth.replaceAll("_", "-")}-01"),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDatePickerMode: DatePickerMode.year,
+      selectableDayPredicate: (date) => date.day == 1,
+      helpText: "Pilih Bulan",
+    );
+    if (picked != null) {
+      setState(() {
+        selectedMonth = DateFormat('yyyy_MM').format(picked);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     List<FlSpot> nData = [];
@@ -185,29 +244,17 @@ class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
       pData = generateFullMonthSpots(npk['phosphorus'] ?? {});
       kData = generateFullMonthSpots(npk['potassium'] ?? {});
     } else {
-      String key;
-      switch (selectedData) {
-        case "Kelembaban Tanah":
-          key = "soilMoistureNPK";
-          break;
-        case "Kelembaban Udara":
-          key = "airHumidity";
-          break;
-        case "Suhu Udara":
-          key = "airTemperature";
-          break;
-        case "Suhu Tanah":
-          key = "soilTemperature";
-          break;
-        case "pH Tanah":
-          key = "pH";
-          break;
-        default:
-          key = "n";
-      }
+      final key = _keyFor(selectedData);
       final avgData = _getSingleValueAveragesPerDay(key);
       singleData = generateFullMonthSpots(avgData);
     }
+
+    final minY = selectedData == "Nutrisi (NPK)"
+        ? calculateMinYMultiple([nData, pData, kData])
+        : calculateMinY(singleData);
+    final maxY = selectedData == "Nutrisi (NPK)"
+        ? calculateMaxYMultiple([nData, pData, kData])
+        : calculateMaxY(singleData);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -226,10 +273,10 @@ class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
+          const Center(
             child: Text(
               "Grafik Bulanan",
-              style: const TextStyle(
+              style: TextStyle(
                 color: Color(0xFF145215),
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -291,12 +338,35 @@ class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
             height: 300,
             child: LineChart(
               LineChartData(
-                minY: selectedData == "Nutrisi (NPK)"
-                    ? calculateMinYMultiple([nData, pData, kData])
-                    : calculateMinY(singleData),
-                maxY: selectedData == "Nutrisi (NPK)"
-                    ? calculateMaxYMultiple([nData, pData, kData])
-                    : calculateMaxY(singleData),
+                minY: minY,
+                maxY: maxY,
+                gridData: FlGridData(show: true),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: true, reservedSize: 40),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final day = value.toInt();
+                        if (day >= 1 && day <= 31) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              day.toString(),
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
                 lineBarsData: selectedData == "Nutrisi (NPK)"
                     ? [
                         LineChartBarData(spots: nData, isCurved: true, color: Colors.blue, barWidth: 3),
@@ -304,47 +374,47 @@ class _GrafikBulananWidgetState extends State<GrafikBulananWidget> {
                         LineChartBarData(spots: kData, isCurved: true, color: Colors.red, barWidth: 3),
                       ]
                     : selectedData == "Kelembaban Udara"
-                      ? [
-                          LineChartBarData(spots: singleData, isCurved: true, color: Colors.orange, barWidth: 3), // Custom color for Kelembaban Udara
-                        ]
-                      : selectedData == "Suhu Udara"
-                          ? [
-                              LineChartBarData(spots: singleData, isCurved: true, color: Colors.red, barWidth: 3), // Custom color for Temperature
-                            ]
-                          : selectedData == "Kelembaban Tanah"
-                            ? [
-                                LineChartBarData(spots: singleData, isCurved: true, color: Colors.brown, barWidth: 3),
-                              ]
-                            : selectedData == "pH Tanah"
-                              ? [
-                                  LineChartBarData(spots: singleData, isCurved: true, color: Colors.purple, barWidth: 3),
-                                ]
-                              : [
-                                  LineChartBarData(spots: singleData, isCurved: true, color: Colors.blue, barWidth: 3),
-                                ],
-                titlesData: FlTitlesData(
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 1,
-                      getTitlesWidget: (value, meta) {
-                        int day = value.toInt();
-                        if (day >= 1 && day <= 31) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(day.toString(), style: const TextStyle(fontSize: 10)),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  ),
-                ),
+                        ? [LineChartBarData(spots: singleData, isCurved: true, color: Colors.orange, barWidth: 3)]
+                        : selectedData == "Suhu Udara"
+                            ? [LineChartBarData(spots: singleData, isCurved: true, color: Colors.red, barWidth: 3)]
+                            : selectedData == "Kelembaban Tanah"
+                                ? [LineChartBarData(spots: singleData, isCurved: true, color: Colors.brown, barWidth: 3)]
+                                : selectedData == "pH Tanah"
+                                    ? [LineChartBarData(spots: singleData, isCurved: true, color: Colors.purple, barWidth: 3)]
+                                    : [LineChartBarData(spots: singleData, isCurved: true, color: Colors.blue, barWidth: 3)],
               ),
             ),
           ),
+          if (selectedData == "Nutrisi (NPK)") ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                _LegendDot(color: Colors.blue, label: "Nitrogen (N)"),
+                SizedBox(width: 12),
+                _LegendDot(color: Colors.green, label: "Phosphorus (P)"),
+                SizedBox(width: 12),
+                _LegendDot(color: Colors.red, label: "Potassium (K)"),
+              ],
+            ),
+          ],
         ],
       ),
     );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({Key? key, required this.color, required this.label}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 6),
+      Text(label, style: const TextStyle(fontSize: 12)),
+    ]);
   }
 }

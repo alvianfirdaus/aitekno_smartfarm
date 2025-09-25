@@ -6,6 +6,7 @@ import 'package:aitekno_smartfarm/Pages/lingkungan.dart';
 import 'package:aitekno_smartfarm/Pages/catatan.dart';
 import 'package:aitekno_smartfarm/Pages/hitung_nutrisi.dart';
 import 'package:aitekno_smartfarm/Pages/akun.dart';
+import 'package:aitekno_smartfarm/Pages/edukasi.dart';
 
 class DashboardScreen extends StatefulWidget {
   final int selectedIndex;
@@ -68,59 +69,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               // Grid Menu
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    children: [
-                      DashboardItem(
-                        imagePath: 'assets/images/iconcontrol.png',
-                        label: 'Kendali IOT',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => KendaliScreen()),
-                          );
-                        },
-                      ),
-                      DashboardItem(
-                        imagePath: 'assets/images/iconlingkungan.png',
-                        label: 'Status Lingkungan',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => LingkunganScreen()),
-                          );
-                        },
-                      ),
-                      DashboardItem(
-                        imagePath: 'assets/images/iconscript.png',
-                        label: 'Catatan',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => CatatanScreen()),
-                          );
-                        },
-                      ),
-                      DashboardItem(
-                        imagePath: 'assets/images/icondeteksi.png',
-                        label: 'Rekomendasi Pupuk',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => HitungNutrisiScreen()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+  child: Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+    child: GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      // HAPUS shrinkWrap & NeverScrollableScrollPhysics
+      // shrinkWrap: true, // <-- hapus ini
+      // physics: NeverScrollableScrollPhysics(), // <-- hapus ini
+      physics: const BouncingScrollPhysics(), // optional: efek scroll iOS, bisa pakai AlwaysScrollableScrollPhysics()
+      padding: const EdgeInsets.only(bottom: 24), // biar ada ruang di bawah
+      children: [
+        DashboardItem(
+          imagePath: 'assets/images/iconcontrol.png',
+          label: 'Kendali IOT',
+          onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => KendaliScreen()),
+          ),
+        ),
+        DashboardItem(
+          imagePath: 'assets/images/iconlingkungan.png',
+          label: 'Status Lingkungan',
+          onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => LingkunganScreen()),
+          ),
+        ),
+        DashboardItem(
+          imagePath: 'assets/images/iconscript.png',
+          label: 'Catatan',
+          onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => CatatanScreen()),
+          ),
+        ),
+        DashboardItem(
+          imagePath: 'assets/images/icondeteksi.png',
+          label: 'Rekomendasi Pupuk',
+          onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => HitungNutrisiScreen()),
+          ),
+        ),
+        DashboardItem(
+          imagePath: 'assets/images/iconedu.png',
+          label: 'Edukasi Pertanian',
+          onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => EdukasiScreen()),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
             ],
           ),
           // PlotBox di tengah atas gambar (responsif & dinamis)

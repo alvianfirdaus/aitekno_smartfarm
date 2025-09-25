@@ -2,15 +2,20 @@
 
 A new Flutter project.
 
-## Getting Started
 
-This project is a starting point for a Flutter application.
+## Ketentuan Teknis
+Pengembangan Aplikasi ini menggunakan framework **Flutter** dan berikut adalah ketentuan teknis untuk menjalankan aplikasi
 
-A few resources to get you started if this is your first Flutter project:
+| Teknologi | Versi     |
+|-----------|-----------|
+| Flutter   | 3.22.2      |
+| Dart      | 3.4.3    | 
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+**Penting!** diharpakan saat menjalankan versi flutter anda sesuai dengan ketentuan teknis diatas agar tidak ada perubahan warna tampilan dan lainya.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Pengembang
+Alvian Nur Firdaus <p>
+contact : 081235026920<p>
+github : alvianfirdaus
+
+

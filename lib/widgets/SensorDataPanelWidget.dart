@@ -9,10 +9,40 @@ class SensorDataPanelWidget extends StatelessWidget {
     required this.plotData,
   });
 
+  // ----- Helpers -----
+  double? _parseDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final s = v.trim().toLowerCase();
+      if (s.isEmpty || s == 'n/a' || s == 'na' || s == 'null') return null;
+      return double.tryParse(s.replaceAll(',', '.'));
+    }
+    return null;
+  }
+
+  /// Ambil kelembaban tanah: prioritas soilMoistureNPK -> fallback soilMoisture
+  /// Return String siap tampil (atau 'N/A' jika keduanya tak ada).
+  String _pickSoilMoistureDisplay(Map<String, dynamic> data) {
+    final mNpk = _parseDouble(data['soilMoistureNPK']);
+    if (mNpk != null) return mNpk.toString(); // tambahkan " %" jika perlu
+    final mSoil = _parseDouble(data['soilMoisture']);
+    if (mSoil != null) return mSoil.toString(); // tambahkan " %" jika perlu
+    return 'N/A';
+  }
+
+  String _strOrNA(dynamic v, {String suffix = ''}) {
+    if (v == null) return 'N/A';
+    final parsed = _parseDouble(v);
+    if (parsed == null) return 'N/A';
+    final s = parsed.toString();
+    return suffix.isEmpty ? s : '$s $suffix';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -21,7 +51,7 @@ class SensorDataPanelWidget extends StatelessWidget {
             color: Colors.grey.withOpacity(0.3),
             spreadRadius: 2,
             blurRadius: 6,
-            offset: Offset(0, 3),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -41,7 +71,7 @@ class SensorDataPanelWidget extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
 
           // Display sensor data if available, else show a message
           plotData.isNotEmpty
@@ -53,73 +83,67 @@ class SensorDataPanelWidget extends StatelessWidget {
                       children: [
                         SensorDataItem(
                           title: 'Kelembapan Tanah',
-                          value: plotData['soilMoistureNPK']?.toString() ?? 'N/A', // Corrected typo
+                          // ✅ Pakai soilMoistureNPK, fallback ke soilMoisture
+                          value: _pickSoilMoistureDisplay(plotData),
                         ),
                         SensorDataItem(
                           title: 'Kelembapan Udara',
-                          value: plotData['airHumidity']?.toString() ?? 'N/A',
+                          value: _strOrNA(plotData['airHumidity']),
                         ),
                       ],
                     ),
-                    Divider(),
-
-                    // pH data
-                    // SensorDetailItem(
-                    //   icon: Icons.grass,
-                    //   title: 'pH',
-                    //   value: plotData['pH']?.toString() ?? 'N/A',
-                    // ),
+                    const Divider(),
 
                     // Temperature data
-                    
                     SensorDetailItem(
                       icon: Icons.thermostat,
                       title: 'Suhu Udara',
-                      value: (plotData['airTemperature'] != null ? plotData['airTemperature'].toString() + " °C" : 'N/A'),
+                      value: _strOrNA(plotData['airTemperature'], suffix: '°C'),
                     ),
 
                     SensorDetailItem(
                       icon: Icons.terrain,
                       title: 'Suhu Tanah',
-                      value: (plotData['soilTemperature'] != null ? plotData['soilTemperature'].toString() + " °C" : 'N/A'),
+                      value: _strOrNA(plotData['soilTemperature'], suffix: '°C'),
                     ),
 
                     SensorDetailItem(
                       icon: Icons.science,
                       title: 'PH',
-                      value: (plotData['pH'] != null ? plotData['pH'].toString() + "" : 'N/A'),
+                      value: _strOrNA(plotData['pH']),
                     ),
 
-                    // Pump Status data
+                    // Mode
                     SensorDetailItem(
                       icon: plotData['mode'] == 1 ? Icons.hdr_auto : Icons.fiber_manual_record,
                       title: 'Mode',
                       value: plotData['mode'] == 1 ? 'OTOMATIS' : 'MANUAL',
                     ),
 
-                    // Pump Status data
+                    // Pump Status
                     SensorDetailItem(
                       icon: plotData['statusPompa'] == 1 ? Icons.power : Icons.power_off,
                       title: 'Status Pompa',
                       value: plotData['statusPompa'] == 1 ? 'ON' : 'OFF',
                     ),
 
-
-                    Divider(),
+                    const Divider(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        // (Catatan: label "Natrium" di kode asal tampaknya salah.
+                        // Umumnya N adalah Nitrogen. Jika memang ingin Nitrogen, ubah labelnya.)
                         SensorDataItem(
-                          title: 'Natrium',
-                          value: (plotData['nitrogen'] != null ? '${plotData['nitrogen']} mg/kg' : 'N/A'), // Corrected typo
+                          title: 'Nitrogen (N)',
+                          value: _strOrNA(plotData['nitrogen'], suffix: 'mg/kg'),
                         ),
                         SensorDataItem(
-                          title: 'Phospor',
-                          value: (plotData['phosphorus'] != null ? '${plotData['phosphorus']} mg/kg' : 'N/A'),
+                          title: 'Fosfor (P)',
+                          value: _strOrNA(plotData['phosphorus'], suffix: 'mg/kg'),
                         ),
                         SensorDataItem(
-                          title: 'Kalium',
-                          value: (plotData['potassium'] != null ? '${plotData['potassium']} mg/kg' : 'N/A'),
+                          title: 'Kalium (K)',
+                          value: _strOrNA(plotData['potassium'], suffix: 'mg/kg'),
                         ),
                       ],
                     ),
@@ -146,13 +170,13 @@ class SensorDataItem extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(color: Colors.grey, fontSize: 14),
+          style: const TextStyle(color: Colors.grey, fontSize: 14),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(
-            color: Colors.orange, // Color for sensor data
+          style: const TextStyle(
+            color: Colors.orange,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -176,12 +200,12 @@ class SensorDetailItem extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, color: Colors.green, size: 24),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Text(
             title,
             style: TextStyle(color: Colors.grey[700], fontSize: 16),
           ),
-          Spacer(),
+          const Spacer(),
           Text(
             value,
             style: TextStyle(
